@@ -41,27 +41,26 @@ workspace "tutorial-dll-tracker"
     filter { "toolset:clang or toolset:gcc"  } buildoptions { "-Wall", "-Wextra", "-fno-exceptions", "-msse4.2" }
     filter { }
 
-project "dll1"
+project "foo"
     kind "SharedLib"
-    includedirs { "src/common" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
-    files { "src/dll1/*.cpp", "src/dll1/*.h" }
+    files { "src/foo/*.cpp", "src/foo/*.h" }
 
-project "dll2"
+project "bar"
     kind "SharedLib"
-    includedirs { "src/common" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
-    files { "src/dll2/*.cpp", "src/dll2/*.h" }
+    files { "src/bar/*.cpp", "src/bar/*.h" }
 
 project "launcher"
+    dependson { "foo", "bar", ... }
     kind "ConsoleApp"
-    includedirs { "src/common", "src/dll1", "src/dll2" }
+    includedirs { "src/foo", "src/bar" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
-    files { "src/launcher/*.h", "src/launcher/*.cpp", "src/common/*.h" }
+    files { "src/launcher/*.h", "src/launcher/*.cpp" }
 

@@ -92,20 +92,14 @@ namespace qcstudio::dll_tracker {
     // The start function
 
     auto start(std::function<void(dll_event_t, const dll_event_data_t&)>&& _callback, bool _debug) -> bool {
-        // If we had already started restart
-
         if (register_cookie) {
             stop();
         }
-
-        // Load the ntdll where all the registering and unregistering functions live
 
         auto ntdll = LoadLibraryA("ntdll.dll");
         if (!ntdll) {
             return false;
         }
-
-        // Get the address of the
 
         register_function   = (register_function_t)GetProcAddress(ntdll, "LdrRegisterDllNotification");
         unregister_function = (unregister_function_t)GetProcAddress(ntdll, "LdrUnregisterDllNotification");
@@ -113,8 +107,6 @@ namespace qcstudio::dll_tracker {
         if (register_function(0, internal_callback, nullptr, &register_cookie) != STATUS_SUCCESS) {
             return false;
         }
-
-        // Keep the user callback
 
         user_callback = std::move(_callback);
 
@@ -124,21 +116,10 @@ namespace qcstudio::dll_tracker {
     // The stop function
 
     void stop() {
-        // Prevent situations where 'start' was not called
-
-        if (!register_cookie) {
-            return;
+        if (register_cookie && unregister_function) {
+            unregister_function(register_cookie);
+            register_cookie = nullptr;
         }
-
-        // Do the actual unregistering
-
-        if (unregister_function) {
-            unregister_function(&register_cookie);
-        }
-
-        // Reflect the new state
-
-        register_cookie = nullptr;
     }
 
 }  // namespace qcstudio::dll_tracker

@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2022 RaÃºl Ramos
+    Copyright (c) 2022 Raúl Ramos
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -23,26 +23,4 @@
 */
 #pragma once
 
-// C++ includes
-
-#include <functional>
-
-// The tracker declarations
-
-namespace qcstudio::dll_tracker {
-
-    enum class dll_event_t {
-        LOAD,
-        UNLOAD
-    };
-
-    struct dll_event_data_t {
-        std::wstring full_path, base_name;
-        uintptr_t    base_addr;
-        size_t       addr_space_size;
-    };
-
-    auto start(std::function<void(dll_event_t, const dll_event_data_t&)>&& _callback, bool _debug = false) -> bool;
-    void stop();
-
-}  // namespace qcstudio::dll_tracker
+extern "C" __declspec(dllexport) void bar();
