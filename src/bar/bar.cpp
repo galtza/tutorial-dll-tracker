@@ -22,7 +22,7 @@
     SOFTWARE.
 */
 
-// Foo include
+// Bar include
 
 #include "bar.h"
 
@@ -30,7 +30,8 @@
 
 #include <iostream>
 
-static int x = 12;
-void       bar() {
+// Test function
+
+void bar() {
     std::cout << "This is bar" << std::endl;
 }

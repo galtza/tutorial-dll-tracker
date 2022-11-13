@@ -48,17 +48,15 @@ using namespace std;
 int main() {
     // Callback called by our library
 
-    const auto cb = [](qcstudio::dll_tracker::dll_event_t _event, const qcstudio::dll_tracker::dll_event_data_t& _data) {
-        switch (_event) {
-            case qcstudio::dll_tracker::dll_event_t::LOAD:
-                wcout << L"Loading ";
-                break;
-            case qcstudio::dll_tracker::dll_event_t::UNLOAD:
-                wcout << L"Unloading ";
-                break;
+    const auto cb = [](bool _load, const wstring& _path, const wstring& _name, uintptr_t _base_addr, size_t _size) {
+        if (_load) {
+            wcout << L"Loading ";
+        } else {
+            wcout << L"Unload ";
         }
-        wcout << "\"" << _data.base_name.c_str() << "\" at \"" << _data.full_path.c_str() << "\" with";
-        wcout << "base addr 0x" << hex << _data.base_addr << " and size " << dec << _data.addr_space_size;
+
+        wcout << "\"" << _name.c_str() << "\" at \"" << _path.c_str() << "\" with";
+        wcout << "base addr 0x" << hex << _base_addr << " and size " << dec << _size;
         wcout << endl;
     };
 
@@ -70,11 +68,15 @@ int main() {
 
         using signature_t = void (*)();
 
-        if (auto foo_function = (signature_t)GetProcAddress(foo_module, "foo")) {
-            foo_function();
+        if (foo_module) {
+            if (auto foo_function = (signature_t)GetProcAddress(foo_module, "foo")) {
+                foo_function();
+            }
         }
-        if (auto bar_function = (signature_t)GetProcAddress(bar_module, "bar")) {
-            bar_function();
+        if (bar_module) {
+            if (auto bar_function = (signature_t)GetProcAddress(bar_module, "bar")) {
+                bar_function();
+            }
         }
 
         if (foo_module) {

@@ -51,10 +51,9 @@ namespace qcstudio::dll_tracker {
 
     // Windows function signatures and internal data types
 
-    using notification_function_t = void(__stdcall*)(unsigned long, const void*, void*);                            // LdrDllNotification
-    using register_function_t     = long(__stdcall*)(unsigned long, notification_function_t, const void*, void**);  // LdrRegisterDllNotification
-    using unregister_function_t   = long(__stdcall*)(const void*);                                                  // LdrUnregisterDllNotification
-    using user_callback_t         = std::function<void(dll_event_t, const dll_event_data_t&)>;
+    using LdrDllNotification           = void(__stdcall*)(unsigned long, const void*, void*);
+    using LdrRegisterDllNotification   = long(__stdcall*)(unsigned long, LdrDllNotification, const void*, void**);
+    using LdrUnregisterDllNotification = long(__stdcall*)(const void*);
 
     // Windows data structures used with notifications (for both load and unload)
 
@@ -68,31 +67,24 @@ namespace qcstudio::dll_tracker {
 
     // Storage
 
-    auto register_cookie     = (void*)nullptr;
-    auto user_callback       = user_callback_t{};
-    auto register_function   = register_function_t{nullptr};
-    auto unregister_function = unregister_function_t{nullptr};
-    auto debugging           = false;
+    auto cookie   = (void*)nullptr;
+    auto callback = callback_t{};
+    auto reg      = LdrRegisterDllNotification{nullptr};
+    auto unreg    = LdrUnregisterDllNotification{nullptr};
 
     // Internal callback
 
-    auto internal_callback = (notification_function_t)[](unsigned long _reason, const void* _data, void* _c) {
-        auto& data       = *(notification_data_t*)_data;
-        auto  event_data = dll_event_data_t{
-            std::wstring(data.full_path.Buffer),
-            std::wstring(data.base_name.Buffer),
-            data.base_addr,
-            data.size};
-
-        if (user_callback) {
-            user_callback(_reason == 1 ? dll_event_t::LOAD : dll_event_t::UNLOAD, event_data);
+    auto internal_callback = (LdrDllNotification)[](unsigned long _reason, const void* _data, void* _c) {
+        auto& data = *(notification_data_t*)_data;
+        if (callback) {
+            callback(_reason == 1, std::wstring(data.full_path.Buffer), std::wstring(data.base_name.Buffer), data.base_addr, data.size);
         }
     };
 
     // The start function
 
-    auto start(std::function<void(dll_event_t, const dll_event_data_t&)>&& _callback, bool _debug) -> bool {
-        if (register_cookie) {
+    auto start(callback_t&& _callback) -> bool {
+        if (cookie) {
             stop();
         }
 
@@ -101,14 +93,14 @@ namespace qcstudio::dll_tracker {
             return false;
         }
 
-        register_function   = (register_function_t)GetProcAddress(ntdll, "LdrRegisterDllNotification");
-        unregister_function = (unregister_function_t)GetProcAddress(ntdll, "LdrUnregisterDllNotification");
+        reg   = (LdrRegisterDllNotification)GetProcAddress(ntdll, "LdrRegisterDllNotification");
+        unreg = (LdrUnregisterDllNotification)GetProcAddress(ntdll, "LdrUnregisterDllNotification");
 
-        if (register_function(0, internal_callback, nullptr, &register_cookie) != STATUS_SUCCESS) {
+        if (reg(0, internal_callback, nullptr, &cookie) != STATUS_SUCCESS) {
             return false;
         }
 
-        user_callback = std::move(_callback);
+        callback = std::move(_callback);
 
         return true;
     }
@@ -116,9 +108,9 @@ namespace qcstudio::dll_tracker {
     // The stop function
 
     void stop() {
-        if (register_cookie && unregister_function) {
-            unregister_function(register_cookie);
-            register_cookie = nullptr;
+        if (cookie && unreg) {
+            unreg(cookie);
+            cookie = nullptr;
         }
     }
 

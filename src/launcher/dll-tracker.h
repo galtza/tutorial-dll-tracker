@@ -31,18 +31,23 @@
 
 namespace qcstudio::dll_tracker {
 
-    enum class dll_event_t {
-        LOAD,
-        UNLOAD
-    };
+    using namespace std;
 
-    struct dll_event_data_t {
-        std::wstring full_path, base_name;
-        uintptr_t    base_addr;
-        size_t       addr_space_size;
-    };
+    /*
+        Callback params...
 
-    auto start(std::function<void(dll_event_t, const dll_event_data_t&)>&& _callback, bool _debug = false) -> bool;
+        bool:      true if load false if unload
+        wstring:   full path of the dll
+        wstring:   name of the dll
+        uintptr_t: base address of the dll
+        size_t:    size of the dll
+    */
+
+    using callback_t = function<void(bool, const wstring&, const wstring&, uintptr_t, size_t)>;
+
+    // start / stop
+
+    auto start(callback_t&& _callback) -> bool;
     void stop();
 
 }  // namespace qcstudio::dll_tracker

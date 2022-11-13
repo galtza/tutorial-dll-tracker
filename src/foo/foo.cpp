@@ -30,6 +30,8 @@
 
 #include <iostream>
 
+// Test function
+
 void foo() {
     std::cout << "This is foo" << std::endl;
 }
