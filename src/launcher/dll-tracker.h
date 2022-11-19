@@ -47,7 +47,7 @@ namespace qcstudio::dll_tracker {
 
     // start / stop
 
-    auto start(callback_t&& _callback) -> bool;
+    bool start(callback_t&& _callback);
     void stop();
 
 }  // namespace qcstudio::dll_tracker

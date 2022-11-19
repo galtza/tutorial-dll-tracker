@@ -49,6 +49,8 @@
 
 namespace qcstudio::dll_tracker {
 
+    using namespace std;
+
     // Windows function signatures and internal data types
 
     using LdrDllNotification           = void(__stdcall*)(unsigned long, const void*, void*);
@@ -74,16 +76,15 @@ namespace qcstudio::dll_tracker {
 
     // Internal callback
 
-    auto internal_callback = (LdrDllNotification)[](unsigned long _reason, const void* _data, void* _c) {
-        auto& data = *(notification_data_t*)_data;
-        if (callback) {
-            callback(_reason == 1, std::wstring(data.full_path.Buffer), std::wstring(data.base_name.Buffer), data.base_addr, data.size);
+    auto internal_callback = (LdrDllNotification)[](unsigned long _reason, const void* _data, void* _ctx) {
+        if (auto data = (notification_data_t*)_data; data && callback) {
+            callback(_reason == 1, wstring(data->full_path.Buffer), wstring(data->base_name.Buffer), data->base_addr, data->size);
         }
     };
 
     // The start function
 
-    auto start(callback_t&& _callback) -> bool {
+    bool start(callback_t&& _callback) {
         if (cookie) {
             stop();
         }
@@ -95,12 +96,15 @@ namespace qcstudio::dll_tracker {
 
         reg   = (LdrRegisterDllNotification)GetProcAddress(ntdll, "LdrRegisterDllNotification");
         unreg = (LdrUnregisterDllNotification)GetProcAddress(ntdll, "LdrUnregisterDllNotification");
+        if (!reg || !unreg) {
+            return false;
+        }
 
         if (reg(0, internal_callback, nullptr, &cookie) != STATUS_SUCCESS) {
             return false;
         }
 
-        callback = std::move(_callback);
+        callback = move(_callback);
 
         return true;
     }
@@ -110,8 +114,8 @@ namespace qcstudio::dll_tracker {
     void stop() {
         if (cookie && unreg) {
             unreg(cookie);
-            cookie = nullptr;
         }
+        cookie = nullptr;
     }
 
 }  // namespace qcstudio::dll_tracker

@@ -55,7 +55,7 @@ int main() {
             wcout << L"Unload ";
         }
 
-        wcout << "\"" << _name.c_str() << "\" at \"" << _path.c_str() << "\" with";
+        wcout << "\"" << _name.c_str() << "\" at \"" << _path.c_str() << "\" with ";
         wcout << "base addr 0x" << hex << _base_addr << " and size " << dec << _size;
         wcout << endl;
     };
