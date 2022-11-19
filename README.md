@@ -1,19 +1,19 @@
 > Basic level
 # Tutorial: tracking down *dll* events
 
-Tutorial about how to track down Load and Unload *dll* events and associated event data.
+This is a tutorial about how to track down Load and Unload *dll* events and associated data.
 
 ## Windows
 
-Even though this tutorial is only about Windows we will follow an encapsulation approach that will enable us to implement this for other OS. We will encapsulate this in **an interface**. 
+Even though this tutorial is only about Windows we will follow an encapsulation approach that in the future will allow us to implement it for other Operative Systems. Hence, we will encapsulate this in **an interface**. 
 
 So, let's define the requirements:
 
 * Track load/unload events
 
-* Provide to the user a way to receive call-backs
+* Provide the user with a way to receive call-backs
 
-* Provide the required information like the name/path of the loaded/unloaded dll and the base address and size of it
+* Give information like the name/path of the loaded/unloaded dll, the base address and its size
 
   
 
@@ -46,7 +46,7 @@ namespace qcstudio::dll_tracker {
 
 Let's talk about implementation details for Windows.
 
-There are two functions that allow us to get registered to *dll* events: ***LdrRegisterDllNotification*** and ***LdrUnregisterDllNotification***. However, according to windows [documentation](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification) "*This function has no associated header file*", hence, we will need to load the ***dll*** it lives in and retrieve the functions' address (***LoadLibraryA*** and ***GetProcAddress*** respectively).
+Two functions allow us to get registered to *dll* events: ***LdrRegisterDllNotification*** and ***LdrUnregisterDllNotification***. However, according to windows [documentation](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification) "*This function has no associated header file*", hence, we will need to load the ***dll*** it lives in and retrieve the functions' address (***LoadLibraryA*** and ***GetProcAddress*** respectively).
 
 The signatures of the functions are as follows:
 
@@ -126,7 +126,7 @@ struct notification_data_t {
 
 The bloating of Windows data structures is reduced considerably.
 
-When it comes to actually retrieve the library and the functions, we use ***LoadLibraryA*** and ***GetProcAddress*** as we mentioned before.
+When it comes to actually retrieving the library and the functions, we use ***LoadLibraryA*** and ***GetProcAddress*** as we mentioned before.
 
 ```c++
 auto ntdll = LoadLibraryA("ntdll.dll");
@@ -136,8 +136,8 @@ auto unreg = (LdrUnregisterDllNotification)GetProcAddress(ntdll, "LdrUnregisterD
 
 > Notice that for this example we did not handle errors for simplicity reasons.
 
-We are going to implement this interface inside a namespace as global functions as this is a global system. Before we start coding we need to define our data. What we need in Windows is the following:
-* A cookie which is basically a handle that Windows functions will return that we will use for all the calls (It is just a ***void\****)
+We are going to implement this interface inside a namespace as two global functions. Before we start coding we need to define our data. What we need in Windows is the following:
+* A cookie which is basically a handle that is provided for future calls (It is just a ***void\****)
 * The pointers to the functions (the ***reg*** and ***unreg*** variables from the previous example)
 * The user-passed call-back
 
@@ -189,9 +189,9 @@ bool start(callback_t&& _callback) {
 > Notice that here we are checking errors
 
 In this order, we:
-* Check if we already started. If we we just call _stop_ and proceed
+* Check if we already started. If we just call _stop_ and proceed
 * We load the _ntdll.dll_ dynamic library where the Windows functions live.
-* We register our internal callback with the registry function
+* We register our internal call-back with the registry function
 * Store the user call-back
 
 After this call, we are ready to receive any _dll_ event.
@@ -285,7 +285,7 @@ _Easy peasy lemon squeezy!_
 
 ## Other platforms
 
-As we mentioned earlier, we will not cover other platforms. Nevertheless, if you want to go further and investigate how to make this mini-library really multi-platform and as a starting point check out the following tables that shows us the correspondence of functions :
+As we mentioned earlier, we will not cover other platforms. Nevertheless, if you want to go further and investigate how to make this mini-library really multi-platform and as a starting point check out the following tables that show us the correspondence of functions :
 
 How to load/unload dynamic libraries and query for specific functions inside:
 
