@@ -41,6 +41,8 @@ workspace "tutorial-dll-tracker"
     filter { "toolset:clang or toolset:gcc"  } buildoptions { "-Wall", "-Wextra", "-fno-exceptions", "-msse4.2" }
     filter { }
 
+    startproject "launcher"
+
 project "foo"
     kind "SharedLib"
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
@@ -63,4 +65,48 @@ project "launcher"
     objdir ".tmp/%{prj.name}"
 
     files { "src/launcher/*.h", "src/launcher/*.cpp" }
+
+-- Handle Dropbox annoying sync of temporary folders
+
+print("[] Excluding .build, .tmp and .out from Dropbox sync...");
+
+if os.target() == "windows" then
+
+    -- Do not allow Dropbox to sync these temporary folders
+
+    local script = [[
+        New-Item .build    -type directory -force | Out-Null
+        New-Item .tmp      -type directory -force | Out-Null
+        New-Item .out      -type directory -force | Out-Null
+        Set-Content -Path '.build' -Stream com.dropbox.ignored -Value 1
+        Set-Content -Path '.tmp'   -Stream com.dropbox.ignored -Value 1
+        Set-Content -Path '.out'   -Stream com.dropbox.ignored -Value 1
+    ]]
+
+    -- Feed the script to powershell process stdin
+
+    local pipe = io.popen("powershell -command -", "w")
+    pipe:write(script)
+    pipe:close()
+
+elseif os.target() == "macosx" then
+
+    -- Do not allow Dropbox to sync these temporary folders
+
+    local script = [[
+        mkdir -p .build
+        mkdir -p .tmp
+        mkdir -p .out
+        xattr -w com.dropbox.ignored 1 .build
+        xattr -w com.dropbox.ignored 1 .tmp
+        xattr -w com.dropbox.ignored 1 .out
+    ]]
+
+    -- Run the script
+
+    local pipe = io.popen("bash", "w")
+    pipe:write(script)
+    pipe:close()
+
+end
 
