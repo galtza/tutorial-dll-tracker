@@ -26,12 +26,18 @@
 
 #include "foo.h"
 
+// Utils
+
+#include "utils.h"
+
 // C++ includes
 
 #include <iostream>
 
+static auto unused = static_lifespan_tracker_t("FOO");
+
 // Test function
 
 void foo() {
-    std::cout << "This is foo" << std::endl;
+    std::cout << "This is foo()" << std::endl;
 }

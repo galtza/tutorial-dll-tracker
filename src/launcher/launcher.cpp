@@ -41,7 +41,7 @@
 
 // Our includes
 
-#include "dll-tracker.h"
+#include "qcstudio/dll-tracker.h"
 
 using namespace std;
 

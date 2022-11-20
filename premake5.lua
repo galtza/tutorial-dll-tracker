@@ -39,12 +39,12 @@ workspace "tutorial-dll-tracker"
     filter { "system:windows", "action:vs*"  } buildoptions { "/W3", "/EHsc" }
     filter { "system:linux"                  } links "pthread"
     filter { "toolset:clang or toolset:gcc"  } buildoptions { "-Wall", "-Wextra", "-fno-exceptions", "-msse4.2" }
-    filter { }
 
     startproject "launcher"
 
 project "foo"
     kind "SharedLib"
+    includedirs { "src/common" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
@@ -52,6 +52,7 @@ project "foo"
 
 project "bar"
     kind "SharedLib"
+    includedirs { "src/common" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
@@ -60,11 +61,11 @@ project "bar"
 project "launcher"
     dependson { "foo", "bar", ... }
     kind "ConsoleApp"
-    includedirs { "src/foo", "src/bar" }
+    includedirs { "src/foo", "src/bar", "src/" }
     targetdir ".out/%{cfg.platform}/%{cfg.buildcfg}"
     objdir ".tmp/%{prj.name}"
 
-    files { "src/launcher/*.h", "src/launcher/*.cpp" }
+    files { "src/qcstudio/*", "src/launcher/*" }
 
 -- Handle Dropbox annoying sync of temporary folders
 
