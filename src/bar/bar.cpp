@@ -34,7 +34,7 @@
 
 #include <iostream>
 
-static auto unused = static_lifespan_tracker_t("BAR");
+static auto unused = static_lifespan_tracker_t("BAR MODULE");
 
 // Test function
 
