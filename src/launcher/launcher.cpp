@@ -48,7 +48,7 @@ using namespace std;
 int main() {
     // Callback called by our library
 
-    const auto cb = [](bool _load, const wstring& _path, const wstring& _name, uintptr_t _base_addr, size_t _size) {
+    const auto callback = [](bool _load, const wstring& _path, const wstring& _name, uintptr_t _base_addr, size_t _size) {
         if (_load) {
             wcout << L"Loading ";
         } else {
@@ -62,7 +62,7 @@ int main() {
 
     // Test: start/load dlls/get functions/call functions/stop
 
-    if (qcstudio::dll_tracker::start(cb)) {
+    if (qcstudio::dll_tracker::start(callback)) {
         auto foo_module = LoadLibrary(L"foo.dll");
         auto bar_module = LoadLibrary(L"bar.dll");
 

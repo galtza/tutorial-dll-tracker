@@ -5,7 +5,7 @@ This is a tutorial about how to track down Load and Unload *dll* events and asso
 
 ## Windows
 
-Even though this tutorial is only about Windows we will follow an encapsulation approach that in the future will allow us to implement it for other Operative Systems. Hence, we will encapsulate this in **an interface**. 
+Even though this tutorial is only about Windows implementation we will hide the implementation details via an interface API using namespaces. 
 
 So, let's define the requirements:
 
@@ -17,7 +17,7 @@ So, let's define the requirements:
 
   
 
-The interface should look like this:
+The user interface should look like this:
 
 ```c++
 namespace qcstudio::dll_tracker {
