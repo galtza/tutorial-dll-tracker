@@ -1,9 +1,10 @@
-> Basic level
+:information_source: Medium level
+
 # Tutorial: tracking down *dll* events
 
-This is a tutorial about how to track down Load and Unload *dll* events and associated data.
+This is a tutorial about how to track down *Load* and *Unload* *dll* events and associated data.
 
-## Windows
+## Interface
 
 Even though this tutorial is only about Windows implementation we will hide the implementation details via an interface API using namespaces. 
 
@@ -13,9 +14,7 @@ So, let's define the requirements:
 
 * Provide the user with a way to receive call-backs
 
-* Give information like the name/path of the loaded/unloaded dll, the base address and its size
-
-  
+* Give information like the name/path of the loaded/unloaded *dll*, the base address and its size
 
 The user interface should look like this:
 
@@ -46,87 +45,89 @@ namespace qcstudio::dll_tracker {
 
 Let's talk about implementation details for Windows.
 
-Two functions allow us to get registered to *dll* events: ***LdrRegisterDllNotification*** and ***LdrUnregisterDllNotification***. However, according to windows [documentation](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification) "*This function has no associated header file*", hence, we will need to load the ***dll*** it lives in and retrieve the functions' address (***LoadLibraryA*** and ***GetProcAddress*** respectively).
+## Windows
 
-The signatures of the functions are as follows:
+Two functions allow us to get registered to *dll* events: ***[LdrRegisterDllNotification](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification)*** and ***[LdrUnregisterDllNotification](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrunregisterdllnotification)***. Both can be found inside *ntdll.dll*. 
 
-```c++
-NTSTATUS NTAPI LdrRegisterDllNotification(
-  _In_     ULONG                          Flags,
-  _In_     PLDR_DLL_NOTIFICATION_FUNCTION NotificationFunction,
-  _In_opt_ PVOID                          Context,
-  _Out_    PVOID                          *Cookie
-);
+:warning: However, you will **NOT** find any Windows header file containing the definition of these functions according to this documentation!
 
-NTSTATUS NTAPI LdrUnregisterDllNotification(
-  _In_ PVOID Cookie
-);
-```
+Instead, we have to use the well known mechanism of loading the *dll* with ***LoadLibraryA*** Windows function and then get the function address with ***GetProcAddress***.
 
-Notice that the function ***LdrRegisterDllNotification*** has as a second parameter a pointer to the notification function. This function must have the following signature:
+But before, we need to write down all the data structures involved as well as the function signatures. This is what we will be using in our Windows implementation straightaway (notice that I use *using* rather than *typedef* as after 25+ years programming I still get confused).
 
-```c++
-VOID CALLBACK LdrDllNotification(
-  _In_     ULONG                       NotificationReason,
-  _In_     PCLDR_DLL_NOTIFICATION_DATA NotificationData,
-  _In_opt_ PVOID                       Context
-);
-```
+When it comes to *load* and *unload* events these data structures are used to inform the call-back:
 
-The second parameter is a pointer to the following union:
-
-```c++
-typedef union _LDR_DLL_NOTIFICATION_DATA {
-    LDR_DLL_LOADED_NOTIFICATION_DATA Loaded;
-    LDR_DLL_UNLOADED_NOTIFICATION_DATA Unloaded;
-} LDR_DLL_NOTIFICATION_DATA, *PLDR_DLL_NOTIFICATION_DATA;
-```
-
-And each event will send a pointer to a specific data structure. Both structures are:
-
-```c++
-typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA {
-    ULONG Flags;                    //Reserved.
-    PCUNICODE_STRING FullDllName;   //The full path name of the DLL module.
-    PCUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
-    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
-    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
-} LDR_DLL_LOADED_NOTIFICATION_DATA, *PLDR_DLL_LOADED_NOTIFICATION_DATA;
-
-typedef struct _LDR_DLL_UNLOADED_NOTIFICATION_DATA {
-    ULONG Flags;                    //Reserved.
-    PCUNICODE_STRING FullDllName;   //The full path name of the DLL module.
-    PCUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
-    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
-    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
-} LDR_DLL_UNLOADED_NOTIFICATION_DATA, *PLDR_DLL_UNLOADED_NOTIFICATION_DATA;
-```
-
-> Notice that they are both **exactly the same**
-
-As we mentioned earlier, as there is **no header for this** there is no definition for certain data structures like ***PCLDR_DLL_NOTIFICATION_DATA***. Instead, we will create our own equivalent version of them. 
-
-In addition, we want to **simplify the signatures and data structures**, and make them platform-independent. 
-
-As an example, we do not need the ***\_In\_*** which is a [SAL](https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2012/hh916383(v=vs.110)) annotation that is used for static code analysis or the ***ULONG*** typedef is the same as ***unsigned long*** and so on. Once we have done all these transformations we get simpler signatures and data structures like these:
-
-```c++
-using LdrDllNotification           = void(__stdcall*)(unsigned long, const void*, void*);
-using LdrRegisterDllNotification   = long(__stdcall*)(unsigned long, LdrDllNotification, const void*, void**);  
-using LdrUnregisterDllNotification = long(__stdcall*)(const void*);
-
-struct notification_data_t {
-    uint32_t              reserved_flags;
-    const UNICODE_STRING& full_path;
-    const UNICODE_STRING& base_name;
-    uintptr_t             base_addr;
-    uint32_t              size;
+```C++
+using LDR_DLL_LOADED_NOTIFICATION_DATA = struct {
+    ULONG            Flags;         // Reserved.
+    PCUNICODE_STRING FullDllName;   // The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   // The base file name of the DLL module.
+    PVOID            DllBase;       // A pointer to the base address for the DLL in memory.
+    ULONG            SizeOfImage;   // The size of the DLL image, in bytes.
 };
+using PLDR_DLL_LOADED_NOTIFICATION_DATA = LDR_DLL_LOADED_NOTIFICATION_DATA*;
+
+using LDR_DLL_UNLOADED_NOTIFICATION_DATA = struct {
+    ULONG            Flags;         // Reserved.
+    PCUNICODE_STRING FullDllName;   // The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   // The base file name of the DLL module.
+    PVOID            DllBase;       // A pointer to the base address for the DLL in memory.
+    ULONG            SizeOfImage;   // The size of the DLL image, in bytes.
+};
+using PLDR_DLL_UNLOADED_NOTIFICATION_DATA = LDR_DLL_UNLOADED_NOTIFICATION_DATA*;
 ```
 
-The bloating of Windows data structures is reduced considerably.
+As you can see both have exactly the same fields ¯\\_(ツ)_/¯
 
-When it comes to actually retrieving the library and the functions, we use ***LoadLibraryA*** and ***GetProcAddress*** as we mentioned before.
+The actual generic data received by any call-back is this:
+
+```C++
+using LDR_DLL_NOTIFICATION_DATA = union {
+    LDR_DLL_LOADED_NOTIFICATION_DATA   Loaded;
+    LDR_DLL_UNLOADED_NOTIFICATION_DATA Unloaded;
+};
+using PLDR_DLL_NOTIFICATION_DATA = LDR_DLL_NOTIFICATION_DATA*;
+using PCLDR_DLL_NOTIFICATION_DATA = const LDR_DLL_NOTIFICATION_DATA*;
+```
+
+Then, we have the notification function definition and associated values:
+
+```C++
+using LDR_DLL_NOTIFICATION_FUNCTION = VOID NTAPI (
+  _In_     ULONG                       NotificationReason,
+  _In_     PCLDR_DLL_NOTIFICATION_DATA NotificationData,
+  _In_opt_ PVOID                       Context
+);
+using PLDR_DLL_NOTIFICATION_FUNCTION = LDR_DLL_NOTIFICATION_FUNCTION*;
+
+#define LDR_DLL_NOTIFICATION_REASON_LOADED 1
+#define LDR_DLL_NOTIFICATION_REASON_UNLOADED 2
+```
+
+After all this, now, we can define the actual function signatures for register, un-register and the call-back:
+
+```C++
+using LdrRegisterDllNotification = NTSTATUS (NTAPI*)(
+  _In_     ULONG                          Flags,
+  _In_     PLDR_DLL_NOTIFICATION_FUNCTION NotificationFunction,
+  _In_opt_ PVOID                          Context,
+  _Out_    PVOID                          *Cookie
+);
+
+using LdrUnregisterDllNotification = NTSTATUS (NTAPI*) (
+  _In_ PVOID Cookie
+);
+
+using LdrDllNotification = VOID (CALLBACK*)(
+  _In_     ULONG                       NotificationReason,
+  _In_     PCLDR_DLL_NOTIFICATION_DATA NotificationData,
+  _In_opt_ PVOID                       Context
+);
+```
+
+:information_source: Check out the beginning of the file *tutorialdll-tracker-windows.cpp* in this repo
+
+As we mentioned before, when it comes to actually retrieving the library and the functions, we use ***LoadLibraryA*** and ***GetProcAddress***.
 
 ```c++
 auto ntdll = LoadLibraryA("ntdll.dll");
@@ -144,20 +145,44 @@ We are going to implement this interface inside a namespace as two global functi
 It looks like this:
 
 ```c++
-auto cookie            = (void*)nullptr;
-auto callback          = callback_t{};
-auto reg               = LdrRegisterDllNotification{nullptr};
-auto unreg             = LdrUnregisterDllNotification{nullptr};
-auto internal_callback = (LdrDllNotification)[](unsigned long _reason, const void* _data, void* _ctx) {
-    if (auto data = (notification_data_t*)_data; data && callback) {
-        callback(_reason == 1, wstring(data->full_path.Buffer), wstring(data->base_name.Buffer), data->base_addr, data->size);
+auto cookie   = (void*)nullptr;
+auto callback = callback_t{};
+auto reg      = LdrRegisterDllNotification{nullptr};
+auto unreg    = LdrUnregisterDllNotification{nullptr};
+```
+
+As we want a generic interface we need to have two call-backs. One for the Windows one that will receive all the Windows data structures and another one provided by the user with no platform-dependent data structures. 
+
+The internal one looks like this:
+
+```C++
+auto internal_callback = (LdrDllNotification)[](ULONG _reason, PCLDR_DLL_NOTIFICATION_DATA _notification_data, PVOID _ctx) {
+    if (_notification_data && callback) {
+        switch (_reason) {
+            case LDR_DLL_NOTIFICATION_REASON_LOADED: {
+                callback(
+                    true,
+                    wstring(_notification_data->Loaded.FullDllName->Buffer),
+                    wstring(_notification_data->Loaded.BaseDllName->Buffer),
+                    (uintptr_t)_notification_data->Loaded.DllBase,
+                    _notification_data->Loaded.SizeOfImage);
+                break;
+            }
+            case LDR_DLL_NOTIFICATION_REASON_UNLOADED: {
+                callback(
+                    true,
+                    wstring(_notification_data->Unloaded.FullDllName->Buffer),
+                    wstring(_notification_data->Unloaded.BaseDllName->Buffer),
+                    (uintptr_t)_notification_data->Unloaded.DllBase,
+                    _notification_data->Unloaded.SizeOfImage);
+                break;
+            }
+        }
     }
 };
 ```
 
-As the interface we are offering is different from the platform we need to have an intermediate ***internal_callback*** that will deliver the event via the final user call-back.
-
-So, let's code some. Let's start with the _start_ function:
+Regarding the _start_ function:
 
 ```c++
 bool start(callback_t&& _callback) {
@@ -186,7 +211,7 @@ bool start(callback_t&& _callback) {
 }
 ```
 
-> Notice that here we are checking errors
+> Here we do check errors
 
 In this order, we:
 * Check if we already started. If we just call _stop_ and proceed
@@ -194,7 +219,7 @@ In this order, we:
 * We register our internal call-back with the registry function
 * Store the user call-back
 
-After this call, we are ready to receive any _dll_ event.
+After calling this, we are ready to receive any _dll_ event.
 
 Similarly, _stop_ code is like this:
 
@@ -206,6 +231,7 @@ void stop() {
     cookie = nullptr;
 }
 ```
+
 
 This one is obvious.
 
@@ -239,15 +265,14 @@ if (qcstudio::dll_tracker::start(cb)) {
     auto foo_module = LoadLibrary(L"foo.dll");
     auto bar_module = LoadLibrary(L"bar.dll");
 
-    using signature_t = void (*)();
-
     if (foo_module) {
-        if (auto foo_function = (signature_t)GetProcAddress(foo_module, "foo")) {
+        if (auto foo_function = (void (*)())GetProcAddress(foo_module, "foo")) {
             foo_function();
         }
     }
+    
     if (bar_module) {
-        if (auto bar_function = (signature_t)GetProcAddress(bar_module, "bar")) {
+        if (auto bar_function = (void (*)())GetProcAddress(bar_module, "bar")) {
             bar_function();
         }
     }
@@ -255,6 +280,7 @@ if (qcstudio::dll_tracker::start(cb)) {
     if (foo_module) {
         FreeLibrary(foo_module);
     }
+    
     if (bar_module) {
         FreeLibrary(bar_module);
     }

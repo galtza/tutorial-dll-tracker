@@ -34,10 +34,75 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <minwindef.h>
-#include <winnt.h>
-#include <subauth.h>
-#include <libloaderapi.h>
+#include <winternl.h>
+
+/*
+    Windows data structures and signatures
+*/
+
+// clang-format off
+
+// Windows data received as 'load' event is received (+ associated aliases)
+
+using LDR_DLL_LOADED_NOTIFICATION_DATA = struct {
+    ULONG            Flags;         // Reserved.
+    PCUNICODE_STRING FullDllName;   // The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   // The base file name of the DLL module.
+    PVOID            DllBase;       // A pointer to the base address for the DLL in memory.
+    ULONG            SizeOfImage;   // The size of the DLL image, in bytes.
+};
+using PLDR_DLL_LOADED_NOTIFICATION_DATA = LDR_DLL_LOADED_NOTIFICATION_DATA*;
+
+// Windows data received as 'unload' event is received (+ associated aliases)
+
+using LDR_DLL_UNLOADED_NOTIFICATION_DATA = struct {
+    ULONG            Flags;         // Reserved.
+    PCUNICODE_STRING FullDllName;   // The full path name of the DLL module.
+    PCUNICODE_STRING BaseDllName;   // The base file name of the DLL module.
+    PVOID            DllBase;       // A pointer to the base address for the DLL in memory.
+    ULONG            SizeOfImage;   // The size of the DLL image, in bytes.
+};
+using PLDR_DLL_UNLOADED_NOTIFICATION_DATA = LDR_DLL_UNLOADED_NOTIFICATION_DATA*;
+
+// Generic notification data structure for any event (notice that 'load' and 'unload' are actually the same data) + the aliases
+
+using LDR_DLL_NOTIFICATION_DATA = union {
+    LDR_DLL_LOADED_NOTIFICATION_DATA   Loaded;
+    LDR_DLL_UNLOADED_NOTIFICATION_DATA Unloaded;
+};
+using PLDR_DLL_NOTIFICATION_DATA = LDR_DLL_NOTIFICATION_DATA*;
+using PCLDR_DLL_NOTIFICATION_DATA = const LDR_DLL_NOTIFICATION_DATA*;
+
+// Signature for the notification callback
+
+using LDR_DLL_NOTIFICATION_FUNCTION = VOID NTAPI (
+  _In_     ULONG                       NotificationReason,
+  _In_     PCLDR_DLL_NOTIFICATION_DATA NotificationData,
+  _In_opt_ PVOID                       Context
+);
+using PLDR_DLL_NOTIFICATION_FUNCTION = LDR_DLL_NOTIFICATION_FUNCTION*;
+
+#define LDR_DLL_NOTIFICATION_REASON_LOADED 1
+#define LDR_DLL_NOTIFICATION_REASON_UNLOADED 2
+
+using LdrRegisterDllNotification = NTSTATUS (NTAPI*)(
+  _In_     ULONG                          Flags,
+  _In_     PLDR_DLL_NOTIFICATION_FUNCTION NotificationFunction,
+  _In_opt_ PVOID                          Context,
+  _Out_    PVOID                          *Cookie
+);
+
+using LdrUnregisterDllNotification = NTSTATUS (NTAPI*) (
+  _In_ PVOID Cookie
+);
+
+using LdrDllNotification = VOID (CALLBACK*)(
+  _In_     ULONG                       NotificationReason,
+  _In_     PCLDR_DLL_NOTIFICATION_DATA NotificationData,
+  _In_opt_ PVOID                       Context
+);
+
+// clang-format on
 
 /*
     ==============
@@ -51,22 +116,6 @@ namespace qcstudio::dll_tracker {
 
     using namespace std;
 
-    // Windows function signatures and internal data types
-
-    using LdrDllNotification           = void(__stdcall*)(unsigned long, const void*, void*);
-    using LdrRegisterDllNotification   = long(__stdcall*)(unsigned long, LdrDllNotification, const void*, void**);
-    using LdrUnregisterDllNotification = long(__stdcall*)(const void*);
-
-    // Windows data structures used with notifications (for both load and unload)
-
-    struct notification_data_t {
-        uint32_t              reserved_flags;
-        const UNICODE_STRING& full_path;
-        const UNICODE_STRING& base_name;
-        uintptr_t             base_addr;
-        uint32_t              size;
-    };
-
     // Storage
 
     auto cookie   = (void*)nullptr;
@@ -76,9 +125,28 @@ namespace qcstudio::dll_tracker {
 
     // Internal callback
 
-    auto internal_callback = (LdrDllNotification)[](unsigned long _reason, const void* _data, void* _ctx) {
-        if (auto data = (notification_data_t*)_data; data && callback) {
-            callback(_reason == 1, wstring(data->full_path.Buffer), wstring(data->base_name.Buffer), data->base_addr, data->size);
+    auto internal_callback = (LdrDllNotification)[](ULONG _reason, PCLDR_DLL_NOTIFICATION_DATA _notification_data, PVOID _ctx) {
+        if (_notification_data && callback) {
+            switch (_reason) {
+                case LDR_DLL_NOTIFICATION_REASON_LOADED: {
+                    callback(
+                        true,
+                        wstring(_notification_data->Loaded.FullDllName->Buffer),
+                        wstring(_notification_data->Loaded.BaseDllName->Buffer),
+                        (uintptr_t)_notification_data->Loaded.DllBase,
+                        _notification_data->Loaded.SizeOfImage);
+                    break;
+                }
+                case LDR_DLL_NOTIFICATION_REASON_UNLOADED: {
+                    callback(
+                        true,
+                        wstring(_notification_data->Unloaded.FullDllName->Buffer),
+                        wstring(_notification_data->Unloaded.BaseDllName->Buffer),
+                        (uintptr_t)_notification_data->Unloaded.DllBase,
+                        _notification_data->Unloaded.SizeOfImage);
+                    break;
+                }
+            }
         }
     };
 
@@ -100,7 +168,7 @@ namespace qcstudio::dll_tracker {
             return false;
         }
 
-        if (reg(0, internal_callback, nullptr, &cookie) != STATUS_SUCCESS) {
+        if (reg(0, internal_callback, nullptr, &cookie)) {
             return false;
         }
 

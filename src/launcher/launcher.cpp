@@ -66,15 +66,13 @@ int main() {
         auto foo_module = LoadLibrary(L"foo.dll");
         auto bar_module = LoadLibrary(L"bar.dll");
 
-        using signature_t = void (*)();
-
         if (foo_module) {
-            if (auto foo_function = (signature_t)GetProcAddress(foo_module, "foo")) {
+            if (auto foo_function = (void (*)())GetProcAddress(foo_module, "foo")) {
                 foo_function();
             }
         }
         if (bar_module) {
-            if (auto bar_function = (signature_t)GetProcAddress(bar_module, "bar")) {
+            if (auto bar_function = (void (*)())GetProcAddress(bar_module, "bar")) {
                 bar_function();
             }
         }
