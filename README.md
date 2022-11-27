@@ -49,7 +49,7 @@ Let's talk about implementation details for Windows.
 
 Two functions allow us to get registered to *dll* events: ***[LdrRegisterDllNotification](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification)*** and ***[LdrUnregisterDllNotification](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrunregisterdllnotification)***. Both can be found inside *ntdll.dll*. 
 
-:warning: However, you will **NOT** find any Windows header file containing the definition of these functions according to this documentation!
+:warning: However, you will **NOT** find any Windows header file containing the definition of these functions according to the [Remarks](https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification#remarks)!
 
 Instead, we have to use the well known mechanism of loading the *dll* with ***LoadLibraryA*** Windows function and then get the function address with ***GetProcAddress***.
 
