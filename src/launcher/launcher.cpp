@@ -41,7 +41,7 @@
 
 // Our includes
 
-#include "qcstudio/dll-tracker.h"
+#include "qcstudio/shared-lib-tracker.h"
 
 using namespace std;
 
@@ -62,7 +62,7 @@ int main() {
 
     // Test: start/load dlls/get functions/call functions/stop
 
-    if (qcstudio::dll_tracker::start(callback)) {
+    if (qcstudio::shared_lib::start_tracking(callback)) {
         auto foo_module = LoadLibrary(L"foo.dll");
         auto bar_module = LoadLibrary(L"bar.dll");
 
@@ -84,6 +84,6 @@ int main() {
             FreeLibrary(bar_module);
         }
 
-        qcstudio::dll_tracker::stop();
+        qcstudio::shared_lib::stop_tracking();
     }
 }
