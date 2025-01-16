@@ -139,7 +139,7 @@ namespace qcstudio::shared_lib {
                 }
                 case LDR_DLL_NOTIFICATION_REASON_UNLOADED: {
                     callback(
-                        true,
+                        false,
                         _notification_data->Unloaded.FullDllName->Buffer,
                         _notification_data->Unloaded.BaseDllName->Buffer,
                         (uintptr_t)_notification_data->Unloaded.DllBase,
